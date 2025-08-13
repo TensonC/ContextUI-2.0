@@ -1,5 +1,5 @@
 #include "ui_event.h"
-
+#include "stdlib.h"
 
 
 
@@ -7,10 +7,13 @@
  * @brief 事件队列初始化函数
  * @param event_queue 事件队列结构体指针
  */
-void Event_Init(EventQueue* event_queue)
+EventQueue* CUI_Event_Create()
 {
+    EventQueue* event_queue = (EventQueue*)malloc(sizeof(EventQueue));
     event_queue->head = 0;
     event_queue->tail = 0;
+
+    return event_queue;
 }
 
 /**
@@ -45,13 +48,12 @@ unsigned char isQueueEmpty(EventQueue* event_queue)
  * @param event_type 事件类型
  * @returns 0 队列已满 1 插入成功 
  */
-static unsigned char Event_Write(EventQueue* event_queue,EventType event_type)
+static void Event_Write(EventQueue* event_queue,enum EventType event_type)
 {
     if(isQueueFull(event_queue))
-        return 0;
+        return;
     event_queue->tail = (event_queue->tail + 1) % MAX_QUEUE_LEN;
     event_queue->queue[event_queue->tail] = event_type;
-    return 1;
 }
 
 /**
@@ -59,12 +61,12 @@ static unsigned char Event_Write(EventQueue* event_queue,EventType event_type)
  * @param event_queue 事件队列结构体指针
  * @returns 事件类型
  */
-EventType Event_Read(EventQueue* event_queue)
+void CUI_Event_Read(EventQueue* event_queue)
 {
     if(isQueueEmpty(event_queue))
-        return KEY_NONE;
+        event_queue->current_event = KEY_NONE;
     event_queue->head = (event_queue->head + 1) % MAX_QUEUE_LEN;
-    return event_queue->queue[event_queue->head];
+    event_queue->current_event = event_queue->queue[event_queue->head];
 }
 
 /**

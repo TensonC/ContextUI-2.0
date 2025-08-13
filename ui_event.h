@@ -21,15 +21,16 @@ typedef struct
     unsigned char head;
     //队列尾
     unsigned char tail;
+    //当前事件
+    enum EventType current_event;
+
 } EventQueue;
 
 
-typedef enum EventType EventType;
-
-void Event_Init(EventQueue* event_queue);
+EventQueue* CUI_Event_Create();
 unsigned char isQueueFull(EventQueue* event_queue);
 unsigned char isQueueEmpty(EventQueue* event_queue);
-EventType Event_Read(EventQueue* event_queue);
+enum EventType CUI_Event_Read(EventQueue* event_queue);
 void Input_Enter(EventQueue* event_queue);
 void Input_Exit(EventQueue* event_queue);
 void Input_Left(EventQueue* event_queue);

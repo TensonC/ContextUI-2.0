@@ -1,105 +1,6 @@
 #include "ui_widget.h"
 #include "stdlib.h"
 
-#define MENU_PIC_LARGE 72
-
-typedef void(*list_res_fn)(CUI_List* list);
-typedef void(*tab_res_fn)(CUI_Tab* tab);
-typedef void(*widget_res_fn)(CUI_Widget* tab);
-typedef void(*menu_res_fn)(CUI_Menu* menu);
-typedef void(*mainmenu_res_fn)(CUI_MainMenu* main_menu);
-
-/*
-界面类型
-    MainMenu
-    List
-    Page
-拥有操作响应函数
-
-界面项类型
-    Tab
-        Widget
-    Menu
-*/
-
-
-//列表结构体
-struct CUI_List {
-    u8 current_tab;         //当前的tab项
-    u8 tab_count;           //tab个数
-    CUI_Tab** tabs;         //tab指针
-
-    list_res_fn up;     //上移函数
-    list_res_fn down;   //下移函数
-    list_res_fn enter;  //确定函数
-    list_res_fn exit;   //退出函数
-};
-
-//列表项结构体
-struct CUI_Tab {
-    const char* title;              //名称
-    enum LinkType union_flag;            //联合体标志
-    union {
-        CUI_List* next_list;        //下级列表
-        CUI_Widget* link_widget;    //关联组件
-        CUI_Page* link_page;        //关联页面
-    } link ;
-    void(*res)(CUI_Tab* tab);                 //响应函数
-};
-
-//组件结构体
-struct CUI_Widget {
-    enum WidgetType widget_type;        //组件种类，用来确定构造函数
-    union {
-        u8 is_check;                   //checkbox组件是否被选中
-        u8 value;                      //number或percent bar类组件的数值
-        const char* str;                //string组件的内容
-    } content;
-    struct {                            //位置信息，用来构建组件
-        u8 top;
-        u8 right;
-    } position;
-    widget_res_fn widget_res;            //组件响应函数
-    res_fn res;
-};
-
-//页面结构体
-struct CUI_Page
-{
-    res_fn page_build;          //页面构建函数
-
-    res_fn up;                  //上移函数
-    res_fn down;                //下移函数
-    res_fn enter;               //确定函数
-    res_fn exit;                //退出函数
-};
-
-
-//菜单项结构体
-struct CUI_Menu
-{
-    const char* title;              //菜单项名称
-    u8* pic;         //菜单图片
-    enum LinkType unionflag;        //联合体标志
-    union {
-        CUI_List* link_list;
-        CUI_Page* link_page;
-    } link;
-    menu_res_fn res;                //菜单的响应函数        
-};
-
-//主菜单结构体
-struct CUI_MainMenu
-{
-    u8 menu_num;            //菜单数量
-    u8 current_menu;        //当前菜单
-    CUI_Menu** menus;       //菜单指针
-
-    mainmenu_res_fn up;         //左移函数
-    mainmenu_res_fn down;       //右移函数
-    mainmenu_res_fn enter;      //确定函数
-    mainmenu_res_fn exit;       //退出函数
-};
 
 
 /**
@@ -233,39 +134,39 @@ static void menu_link_page_res(CUI_Menu* menu)
 
 /**
  * @brief 向右滚动主菜单
- * @param main_menu 主菜单
+ * @param root 主菜单
  */
-static void menu_rightward(CUI_MainMenu* main_menu) {
-    if ( main_menu->current_menu + 1 < main_menu->menu_num)
+static void menu_rightward(CUI_RootDir* root) {
+    if ( root->current_menu + 1 < root->menu_count)
     {
-        main_menu->current_menu++;
+        root->current_menu++;
     }
 }
 
 /**
  * @brief 向左滚动列表
- * @param main_menu 主菜单
+ * @param root 主菜单
  */
-static void menu_leftward(CUI_MainMenu* main_menu) {
-    if (main_menu->current_menu > 0)
+static void menu_leftward(CUI_RootDir* root) {
+    if (root->current_menu > 0)
     {
-        main_menu->current_menu--;
+        root->current_menu--;
     }
 }
 
 /**
  * @brief 进入某菜单,即调用该菜单下的响应函数
- * @param main_menu 主菜单
+ * @param root 主菜单
  */
-static void menu_enter(CUI_MainMenu* main_menu) {
-    main_menu->menus[main_menu->current_menu]->res(main_menu->menus[main_menu->current_menu]);
+static void menu_enter(CUI_RootDir* root) {
+    root->menus[root->current_menu]->res(root->menus[root->current_menu]);
 } 
 
 /**
  * @brief 进入某菜单,即调用该菜单下的响应函数
- * @param main_menu 主菜单
+ * @param root 主菜单
  */
-static void menu_exit(CUI_MainMenu* main_menu) {
+static void menu_exit(CUI_RootDir* root) {
 
 } 
 
@@ -283,8 +184,15 @@ CUI_List* CUI_List_Create(CUI_Tab* tabs[],u8 tab_count)
         return NULL;
     list->current_tab = 0;
     //列表中的Tab项，注意数组越界
-    list->tabs = tabs;
     list->tab_count = tab_count;
+    list->tabs = (CUI_Tab**)malloc(sizeof(CUI_Tab*) * tab_count);
+    if(!list->tabs) {
+        free(list);
+        return NULL;
+    }
+    for (u8 i = 0; i < tab_count; i++) {
+        list->tabs[i] = tabs[i];
+    }
     //列表对应的响应函数
     list->up = list_upward;
     list->down = list_downward;
@@ -403,13 +311,13 @@ CUI_Page* CUI_Page_Create(res_fn page_build,res_fn up,res_fn down,res_fn enter,r
  * @param link_type 关联类型
  * @param link 关联指针
  */
-CUI_Menu* CUI_Menu_Create(const char* title,u8* pic[MENU_PIC_LARGE],enum LinkType link_type,void* link) 
+CUI_Menu* CUI_Menu_Create(const char* title,u8 pic[MENU_PIC_LARGE],enum LinkType link_type,void* link) 
 {
     CUI_Menu* menu = (CUI_Menu*)malloc(sizeof(CUI_Menu));
     if(!menu)
         return NULL;
     menu->title = title;
-    menu->pic = *pic;
+    menu->pic = pic;
     menu->unionflag = link_type;
     switch (link_type)
     {
@@ -433,19 +341,25 @@ CUI_Menu* CUI_Menu_Create(const char* title,u8* pic[MENU_PIC_LARGE],enum LinkTyp
  * @param menus 菜单列表
  * @param menu_count 菜单个数
  */
-CUI_MainMenu* CUI_MainMenu_Create(CUI_Menu* menus[],u8 menu_count)
+CUI_RootDir* CUI_RootDir_Create(CUI_Menu* menus[],u8 menu_count)
 {
-    CUI_MainMenu* main_menu = (CUI_MainMenu*)malloc(sizeof(CUI_MainMenu));
-    if(!main_menu)
+    CUI_RootDir* root = (CUI_RootDir*)malloc(sizeof(CUI_RootDir));
+    if(!root)
         return NULL;
-    main_menu->current_menu = 0;
-    main_menu->menu_num = menu_count;
-    main_menu->menus = menus;
+    root->current_menu = 0;
+    root->menu_count = menu_count;
+    root->menus = (CUI_Menu**)malloc(sizeof(CUI_Menu*) * menu_count);
+    if(!root->menu_count) {
+        free(root);
+        return NULL;
+    }
+    for (u8 i = 0; i < menu_count; i++) {
+        root->menus[i] = menus[i];
+    }
+    root->down = menu_rightward;
+    root->up = menu_leftward;
+    root->enter = menu_enter;
+    root->exit = menu_exit;
 
-    main_menu->down = menu_rightward;
-    main_menu->up = menu_leftward;
-    main_menu->enter = menu_enter;
-    main_menu->exit = menu_exit;
-
-    return main_menu;
+    return root;
 }
